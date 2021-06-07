@@ -1,81 +1,51 @@
-volumes:
-  zabbix-postgres:
-  zabbix-postgres-backups:
-
+version: "2"
 services:
-  postgres:
-    # Image tag (replace with yours)
-    image: postgres:13.2
-    volumes:
-      - zabbix-postgres:/var/lib/postgresql/data
-    environment:
-      # Database name (replace with yours)
-      POSTGRES_DB: zabbixdb
-      # Database user (replace with yours)
-      POSTGRES_USER: zabbixdbuser
-      # Database password (replace with yours)
-      POSTGRES_PASSWORD: FmuHw92hiFZfJNzKvzgNwsf
-    restart: unless-stopped
+    server:
+        build: zabbix-server
+        depends_on: 
+            - db
+        environment: 
+            - DB_SERVER_HOST=127.0.0.1
+            - DB_SERVER_PORT=5432
+            - POSTGRES_USER=zabbix
+            - POSTGRES_PASSWORD=7ozX3wBdEZFVcoi
+            - POSTGRES_DB=zabbix
+        network_mode: host
 
-  zabbix:
-    # Image tag (replace with yours)
-    image: zabbix/zabbix-server-pgsql:ubuntu-5.2.6
-    environment:
-      DB_SERVER_HOST: postgres
-      DB_SERVER_PORT: 5432
-      # Database name (replace with yours)
-      POSTGRES_DB: zabbixdb
-      # Database user (replace with yours)
-      POSTGRES_USER: zabbixdbuser
-      # Database password (replace with yours)
-      POSTGRES_PASSWORD: FmuHw92hiFZfJNzKvzgNwsf
-      ZBX_VALUECACHESIZE: 64M
-      ZBX_CACHESIZE: 128M
-      ZBX_TRENDCACHESIZE: 128M
-    ports:
-      - "10051:10051"
-    restart: unless-stopped
-    depends_on:
-      - postgres
+    frontend:
+        image: zabbix/zabbix-web-nginx-pgsql:alpine-3.2-latest
+        depends_on: 
+            - server
+        environment: 
+            - DB_SERVER_HOST=127.0.0.1
+            - POSTGRES_USER=zabbix
+            - POSTGRES_PASSWORD=7ozX3wBdEZFVcoi
+            - ZBX_SERVER_HOST=127.0.0.1
+            - TZ=Europe/Prague
+        network_mode: host
+    
+    agent:
+        image: zabbix/zabbix-agent:alpine-3.2-latest
+        privileged: true
+        depends_on: 
+            - server
+        environment: 
+            - ZBX_HOSTNAME=zabbix-monitoring
+            - ZBX_SERVER_HOST=127.0.0.1
+        network_mode: host
 
-  web:
-    # Image tag (replace with yours)
-    image: zabbix/zabbix-web-nginx-pgsql:ubuntu-5.2.6
-    environment:
-      DB_SERVER_HOST: postgres
-      DB_SERVER_PORT: 5432
-      # Database name (replace with yours)
-      POSTGRES_DB: zabbixdb
-      # Database user (replace with yours)
-      POSTGRES_USER: zabbixdbuser
-      # Database password (replace with yours)
-      POSTGRES_PASSWORD: FmuHw92hiFZfJNzKvzgNwsf
-      ZBX_SERVER_HOST: zabbix
-      ZBX_SERVER_PORT: 10051
-      # Timezone (replace with yours) https://www.php.net/manual/en/timezones.php
-      PHP_TZ: Europe/Prague
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 90s
-    restart: unless-stopped
-    depends_on:
-      - postgres
-      - zabbix
-
-  agent:
-    # Image tag (replace with yours)
-    image: zabbix/zabbix-agent:ubuntu-5.2.6
-    environment:
-      # Zabbix Hostname (replace with yours)
-      # Set as DNS name on Zabbix server host configuration screen to make checks of Zabbix server itself
-      ZBX_HOSTNAME: zabbix-agent
-      ZBX_SERVER_HOST: 0.0.0.0/0
-    ports:
-      - "10050:10050"
-    restart: unless-stopped
-    depends_on:
-      - postgres
-      - zabbix
+    db:
+        image: postgres:9.6.2-alpine
+        volumes:
+            - "./pgsql_data:/var/lib/postgresql/data/pgdata"
+        environment: 
+            - POSTGRES_USER=zabbix
+            - POSTGRES_PASSWORD=7ozX3wBdEZFVcoi
+            - POSTGRES_DB=zabbix
+            - PGDATA=/var/lib/postgresql/data/pgdata
+        network_mode: host
+        
+networks:
+    default:
+        external:
+            name: "host"
